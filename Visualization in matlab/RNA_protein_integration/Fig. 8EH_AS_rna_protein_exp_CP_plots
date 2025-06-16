@@ -1,0 +1,181 @@
+%% APOEscOmic_AS_mRNA_prot_subsets.m 
+clear;
+close all hidden;
+clc;
+
+%% datapath
+protdeppath = 'F:\APOE-TR-Omics-Data\Single cell type proteomics\Clark analysis-4th round\DEP-count_cutoff=1, prop_cutoff=0.001\log Total.protein\xlsx';
+rnadegpath = 'F:\APOE-TR-Omics-Data\Single cell RNA-seq\celltype-aggregate-deg-results\SEX+APOExAGE-selected\AS\summary-xlsx';
+
+savefigpath = 'F:\APOE-TR-Omics-Data\Single cell type proteomics\RNA-Protein-integration\ana-fig';
+
+%% extract prot list
+cd(protdeppath);
+[a1,b1,c1] = xlsread('AS 24Mvs3M.xlsx');
+protlist = b1(2:end,1);
+cd(rnadegpath);
+[a2,b2,c2] = xlsread('AS 24Mvs3M.xlsx');
+genelist = b2(2:end,1);
+[rnaprotcommon,ida,idb] = intersect(protlist,genelist,'stable');
+
+%% highlight ids
+protlogfc = a1(:,1);genelogfc = a2(idb,1); 
+protq = -log10(a1(:,5));geneq = -log10(a2(idb,5)); 
+idpp = intersect(intersect(find(genelogfc>0),find(protlogfc>0)), intersect(find(protq>1.3),find(geneq>1.3)));
+idnn = intersect(intersect(find(genelogfc<0),find(protlogfc<0)), intersect(find(protq>1.3),find(geneq>1.3)));
+idpn = intersect(intersect(find(genelogfc>0),find(protlogfc<0)), intersect(find(protq>1.3),find(geneq>1.3)));
+idnp = intersect(intersect(find(genelogfc<0),find(protlogfc>0)), intersect(find(protq>1.3),find(geneq>1.3)));
+
+idhighlight1 = intersect(idpp,find(genelogfc>1));
+idhighlight2 = intersect(idpn,find(genelogfc>1));
+idhighlight3 = idpn;
+idhighlight4 = intersect(idnn,find(genelogfc<-0.7));
+idhighlight5 = intersect(idnn,find(protlogfc<-0.3));
+idhighlight6 = intersect(idnp,find(protlogfc>0.35));
+idhighlight7 = intersect(idnp,find(genelogfc<-0.6));
+idhighlight8 = intersect(idpp,find(protlogfc>0.85));
+
+idhighlight = unique([idhighlight1;idhighlight2;idhighlight3;idhighlight4;idhighlight5;idhighlight6;idhighlight7;idhighlight8]);
+prothighlight = protlist(idhighlight);
+
+%% zscore
+genelogfcz = zscore(genelogfc);
+protlogfcz = zscore(protlogfc);
+
+%% log2fc plots
+figure('position',[ 488   242   560   420]);
+fn = 'AS-geneprotlogfcz-corr-plot.emf';
+
+figure('position',[0.0010    0.0410    1.5360    0.7488]*1000);
+fn = 'AS-geneprotlogfcz-corr-plot-text.emf';
+
+x_lim = [-20 15];y_lim = [-5 10];
+plot(genelogfcz,protlogfcz,'.','Color',[0.8,0.8,0.8]);
+hold on;
+plot(genelogfcz(idpp),protlogfcz(idpp),'.r');
+plot(genelogfcz(idnn),protlogfcz(idnn),'.b');
+plot(genelogfcz(idpn),protlogfcz(idpn),'.m');
+plot(genelogfcz(idnp),protlogfcz(idnp),'.c');
+text(genelogfcz(idhighlight),protlogfcz(idhighlight),prothighlight);
+
+prob = fitlm(genelogfcz,protlogfcz);    
+plot(genelogfcz,prob.Fitted,'-k');
+hold on;
+plot ([0 0],y_lim,':k');
+plot(x_lim,[0 0],':k');
+temp = prob.Coefficients;
+intercept= temp{1,1}; 
+r = temp{2,1};
+Rsquare = prob.Rsquared.Ordinary;
+[~,p] = coefTest(prob);
+axis equal;
+% axis square;
+set(gca,'xlim',x_lim,'ylim',y_lim);
+xlabel('genelog2fcz');
+ylabel('protlog2fcz')
+title(sprintf('AS-geneprotlogfcz-corr-p-%.2g-r-%.2g',p,r));
+
+cd(savefigpath);
+saveas(gcf,fn);
+
+%% CP z plots with q 
+ipadatapath = 'F:\APOE-TR-Omics-Data\Single cell type proteomics\RNA-Protein-integration\IPA';
+cd(ipadatapath);
+
+fn = 'AS24vs3-rna vs prot-Sort.xlsx';
+[a3,b3,c3] = xlsread(fn,'CPsort');
+[a4,b4,c6] = xlsread(fn,'URsort');
+
+%% highlight ids
+rnaz = a3(:,1);protz = a3(:,2); rnaq = a3(:,5);protq = a3(:,6);
+CPnames = b3(2:end,1);CPids = num2cell(1:length(CPnames));
+sigtypes = b3(2:end,end);
+id1 = find(strcmp(sigtypes,'r'));
+id2 = find(strcmp(sigtypes,'p'));
+id3 = find(strcmp(sigtypes,'rp'));
+
+%% plots 
+figure('position',[ 488   242   560   420]);
+fn = 'AS-rnaprot-CP-zcorr-plot.emf';
+% fn = 'AS-rnaprot-CP-zcorr-plot-text.emf';
+
+x_lim = [-3 3];y_lim = [-4 4];
+plot(rnaz,protz,'.','Color',[0.5,0.5,0.5]);
+hold on;
+plot(rnaz(id1),protz(id1),'.r');
+plot(rnaz(id2),protz(id2),'.b');
+plot(rnaz(id3),protz(id3),'.g');
+
+plot ([2 2],y_lim,':k');
+plot(x_lim,[2 2],':k');
+plot ([-2 -2],y_lim,':k');
+plot(x_lim,[-2 -2],':k');
+
+% text(rnaz,protz,CPids);
+prob = fitlm(rnaz,protz);    
+plot(rnaz,prob.Fitted,'-k');
+hold on;
+plot ([0 0],y_lim,':k');
+plot(x_lim,[0 0],':k');
+temp = prob.Coefficients;
+intercept= temp{1,1}; 
+r = temp{2,1};
+Rsquare = prob.Rsquared.Ordinary;
+[~,p] = coefTest(prob);
+% axis equal;
+axis square;
+set(gca,'xlim',x_lim,'ylim',y_lim);
+xlabel('rnaz');
+ylabel('protz')
+title(sprintf('AS-rnaprotcpz-corr-p-%.2g-r-%.2g',p,r));
+
+cd(savefigpath);
+saveas(gcf,fn);
+
+%% 
+z = a3(:,1:2);
+q = a3(:,5:6);
+temp = split(fn,'-');
+temp2 = strcat(temp(1),'-',temp(2),'-',temp(3));
+zthr = 2;
+pthr = 1.3;
+xlabels = {'E2' 'E3' 'E4'};
+ylabels = b3(2:end,1);
+fig_fn = sprintf('%s_CP_zqdotplot.emf',char(temp2));
+temp = z(:);
+if strcmp(fn (1:2),'AS')
+    colorbar_bin=1;
+elseif strcmp(fn (1:2),'MG') 
+    colorbar_bin=1;
+else
+colorbar_bin = round((max(temp(~isnan(temp)))-min(temp(~isnan(temp))))/10);
+end
+z (q<1.3) = nan;q(q<1.3)=nan;
+zpfcp_dotplot_neo(z,q,zthr,pthr,xlabels,ylabels,fig_fn,colorbar_bin);
+cd(savefigpath);
+saveas(gcf,fig_fn);
+%%
+z = a4(:,1:2);
+q = a4(:,3:4);
+temp = split(fn,'-');
+temp2 = strcat(temp(1),'-',temp(2),'-',temp(3));
+zthr = 2;
+pthr = 1.3;
+xlabels = {'E2' 'E3' 'E4'};
+ylabels = b4(2:end,1);
+fig_fn = sprintf('%s_UR_zqdotplot.emf',char(temp2));
+temp = z(:);
+if strcmp(fn (1:2),'AS')
+    colorbar_bin=1;
+elseif strcmp(fn (1:2),'MG') 
+    colorbar_bin=1;
+else
+colorbar_bin = round((max(temp(~isnan(temp)))-min(temp(~isnan(temp))))/10);
+end
+z (q<1.3) = nan;q(q<1.3)=nan;
+zpfcp_dotplot_neo(z,q,zthr,pthr,xlabels,ylabels,fig_fn,colorbar_bin);
+cd(savefigpath);
+saveas(gcf,fig_fn);
+
+
+
